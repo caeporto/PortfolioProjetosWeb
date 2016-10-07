@@ -52,65 +52,68 @@ module.exports = function(passport) {
         // User.findOne wont fire unless data is sent back
         process.nextTick(function() {
 
-        // find a user whose email is the same as the forms email
-        // we are checking to see if the user trying to login already exists
-        User.findOne({ 'email' :  email }, function(err, user) {
-            // if there are any errors, return the error
-            if (err)
-                return done(err);
+            // find a user whose email is the same as the forms email
+            // we are checking to see if the user trying to login already exists
+            User.findOne({ 'email' :  email }, function(err, user) {
+                // if there are any errors, return the error
+                if (err)
+                    return done(err);
 
-            // check to see if theres already a user with that email
-            if (user) {
-                return done(null, false, {error : 'This email is already taken'});
-            } else {
+                // check to see if theres already a user with that email
+                if (user) {
+                    return done(null, false, {error : 'This email is already taken'});
+                } else {
 
-                // if there is no user with that email
-                // create the user
-                var newUser            = new User();
+                    // if there is no user with that email
+                    // create the user
+                    var newUser            = new User();
 
-                // set the user's local credentials
-                newUser.email    = email;
-                newUser.password = newUser.generateHash(password);
-                newUser.usertype = req.body.usertype;
-                if(req.body.username){ //optional
-                    newUser.username = req.body.username;
+                    // set the user's local credentials
+                    newUser.email    = email;
+                    newUser.password = newUser.generateHash(password);
+                    newUser.usertype = req.body.usertype;
+                    newUser.available_work_load = req.body.available_work_load;
+                    if(req.body.username){ //optional
+                        newUser.username = req.body.username;
+                    }
+
+                    //aws //request for the admin access keys
+                    //rewrite to attach user to group and attach policies to the right s3 folder
+                    var admin_key = req.user.decryptText(req.user.keycred);
+                    var admin_passkey = req.user.decryptText(req.user.keypasscred);
+                    var iam = new AWS.IAM({accessKeyId : admin_key, secretAccessKey : admin_passkey});
+                    var params = {
+                        UserName: newUser.email /* required */
+                    };
+                    iam.createUser(params, function (uerr, user) {
+                        if (uerr) 
+                            console.log(uerr, uerr.stack); // an error occurred
+                        else
+                        {
+                            //create access keys
+                            //params already created
+                            iam.createAccessKey(params, function(kerr, keys) {
+                                if (kerr) 
+                                    console.log(kerr, kerr.stack); // an error occurred
+                                else     
+                                {
+                                    //set and encrypt the user's aws credentials
+                                    newUser.keycred = newUser.encryptText(keys.AccessKey.AccessKeyId);
+                                    newUser.keypasscred = newUser.encryptText(keys.AccessKey.SecretAccessKey);
+                                    // save the user
+                                    newUser.save(function(nuerr) {
+                                        if (nuerr)
+                                            throw nuerr;
+                                        return done(null, newUser);
+                                    });
+                                }
+                            });
+                        }    
+                            
+                    });
                 }
 
-                //aws //request for the admin access keys
-                //rewrite to attach user to group and attach policies to the right s3 folder
-                var iam = new AWS.IAM({accessKeyId : req.user.keycred, secretAccessKey : req.user.keypasscred});
-                var params = {
-                    UserName: newUser.email /* required */
-                };
-                iam.createUser(params, function (uerr, user) {
-                    if (uerr) 
-                        console.log(uerr, uerr.stack); // an error occurred
-                    else
-                    {
-                        //create access keys
-                        //params already created
-                        iam.createAccessKey(params, function(kerr, keys) {
-                            if (kerr) 
-                                console.log(kerr, kerr.stack); // an error occurred
-                            else     
-                            {
-                                //set the user's aws credentials
-                                newUser.keycred = keys.AccessKey.AccessKeyId;
-                                newUser.keypasscred = keys.AccessKey.SecretAccessKey;
-                                // save the user
-                                newUser.save(function(nuerr) {
-                                    if (nuerr)
-                                        throw nuerr;
-                                    return done(null, newUser);
-                                });
-                            }
-                        });
-                    }    
-                        
-                });
-            }
-
-        });    
+            });    
 
         });
 
@@ -132,7 +135,7 @@ module.exports = function(passport) {
 
         // find a user whose email is the same as the forms email
         // we are checking to see if the user trying to login already exists
-        User.findOne({ 'email' :  email }, function(err, user) {
+        User.findOne({ 'email' :  email }, {'keycred' : 0, 'keypasscred' : 0}, function(err, user) {
             // if there are any errors, return the error before anything else
             if (err)
                 return done(err);

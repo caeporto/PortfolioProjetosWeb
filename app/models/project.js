@@ -1,27 +1,51 @@
 // app/models/user.js
 // load the things we need
 var mongoose = require('mongoose')
-  , Schema = mongoose.Schema;
-var bcrypt   = require('bcrypt-nodejs');
+  , Schema   = mongoose.Schema;
+var async 	 = require('async');
 
 //models
-//var Portfolio = require('./portfolio');
+var Portfolio = require('./portfolio');
 
 //validation
 //var validate = require('mongoose-validate');
 
 // define the schema for the program model
 var projectSchema = mongoose.Schema({
-
 	name : { type: String, required: true},
 	description : { type: String, required: true},
 	human_resources : [{type : Schema.Types.ObjectId, ref : 'User'}],
 	total_value : { type: Number, required: true},
 	available_value : { type: Number, required: true},
 	status : {type : Number, required : true},
-	//valor_agregado : { type: String, required: true}
-
+	category : { type: String, require: true},
+	work_load : {type : Number, required : true},
+	project_roles : [{type : String, required : true}]
 });
+
+projectSchema.methods.validateProjectRoles = function (portfolio_m, async_m, validcallback) {
+	portfolio_m.find({}, function(perr, port_documents){
+		if(perr)
+			validcallback(false);
+		else if(port_documents.length == 0)
+			validcallback(false);
+		else
+		{
+			var portfolio = port_documents[0];
+			async_m.each(this.project_roles, function(role, callback){
+				if(!portfolio.possible_roles.includes(role)) //module.exports in portfolio
+					callback(new Error());
+				else 
+					callback(null);
+				}, function(err){
+					if(err)
+						validcallback(false);
+					else
+						validcallback(true);
+			});
+		}
+	});
+};
 
 // create the model for program and expose it to our app
 module.exports = mongoose.model('Project', projectSchema);
