@@ -28,8 +28,10 @@ var userSchema = mongoose.Schema({
     keypasscred : String,
     //projects that this user is related to
     projects : [{type : Schema.Types.ObjectId, ref : 'Project'}], //added after user creation
+    //available workload
     available_work_load : { type : Number, required : true },
-    possible_roles : [{type : String}] //added after user creation
+    //possible roles the user can take in a project
+    possible_roles : [{type : String, required : true}] 
 });
 
 // methods ======================

@@ -15,12 +15,16 @@ var projectSchema = mongoose.Schema({
 	name : { type: String, required: true},
 	description : { type: String, required: true},
 	human_resources : [{type : Schema.Types.ObjectId, ref : 'User'}],
-	total_value : { type: Number, required: true},
+	manager : {type : Schema.Types.ObjectId, ref : 'User', required : true},
+	total_value : {type: Number, required: true},
 	available_value : { type: Number, required: true},
 	status : {type : Number, required : true},
 	category : { type: String, require: true},
 	work_load : {type : Number, required : true},
-	project_roles : [{type : String, required : true}]
+	project_roles : [{type : String, required : true}],
+	project_files : [{type : String}],
+	begin_date : {type : Date, required : true},
+	end_date : {type : Date, required : true}
 });
 
 projectSchema.methods.validateProjectRoles = function (portfolio_m, async_m, validcallback) {

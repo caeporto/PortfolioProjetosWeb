@@ -148,7 +148,8 @@ module.exports = function(passport) {
             if (!user.validPassword(password))
                 return done(null, false, {error : 'Wrong password'}); // create the loginMessage and save it to session as flashdata
 
-            // all is well, return successful user
+            // all is well, return successful user without password
+            user.password = undefined;
             return done(null, user);
         });
 

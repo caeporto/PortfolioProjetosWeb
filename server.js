@@ -12,6 +12,8 @@ var bodyParser   = require('body-parser'); //request body parser middleware
 var session      = require('express-session'); //session express middleware
 var MongoStore = require('connect-mongo')(session); //store cookie from session in db middleware
 
+var busboy = require('connect-busboy'); //multipart data upload
+
 var logger = require('./config/logger'); //config logger morgan with winston
 var configDB = require('./config/database'); //config db variables
 
@@ -43,6 +45,7 @@ app.use(session({ secret: SECRET,
                   })); // session secret
 app.use(passport.initialize());
 app.use(passport.session()); // persistent login sessions
+app.use(busboy())
 
 require('./app/routes.js')(app, passport);
 

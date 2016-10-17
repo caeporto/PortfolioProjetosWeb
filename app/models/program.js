@@ -19,7 +19,9 @@ var programSchema = mongoose.Schema({
     projects : [{type : Schema.Types.ObjectId, ref : 'Project', required : true}],
     total_value : {type : Number, required : true},
     status : {type : Number, required : true},
-    category : { type: String, require: true}
+    category : { type: String, require: true},
+    begin_date : {type : Date, required : true},
+	end_date : {type : Date, required : true}
 });
 
 // create the model for program and expose it to our app
