@@ -7,7 +7,6 @@ var mongoose = require('mongoose'); //db middleware //mpromise is deprecated ins
 var passport = require('passport'); //authorization middleware
 
 var morgan       = require('morgan'); //log middleware
-var cookieParser = require('cookie-parser'); //cookie middleware
 var bodyParser   = require('body-parser'); //request body parser middleware
 var session      = require('express-session'); //session express middleware
 var MongoStore = require('connect-mongo')(session); //store cookie from session in db middleware
@@ -20,25 +19,25 @@ var configDB = require('./config/database'); //config db variables
 const SECRET = 'portfoliomanagementpass'; //session secret
 
 // configuration ===============================================================
- var promise_op = { promiseLibrary: require('bluebird') }; //third party promise library bluebird
+var promise_op = { promiseLibrary: require('bluebird') }; //third party promise library bluebird
 mongoose.connect(configDB.url, promise_op); // connect to our database
 
 require('./config/passport')(passport); // pass passport for configuration
 
 // set up our express application
 app.use(morgan('short', { 'stream' : logger.stream })); // log every request to the log file
-app.use(cookieParser()); // read cookies (needed for auth)
 app.use(bodyParser.json()); // read json
 app.use(bodyParser.urlencoded({ extended: true })); //read x-www-url
 // required for passport
 // uncomment for proxy connection
-//app.enable('trust proxy');
+app.enable('trust proxy');
+app.set('trust proxy', 1) // trust first proxy
 app.use(session({ secret: SECRET,
-                  resave : false, 
+                  resave : false,
                   rolling : true,
                   saveUninitialized : false,
-                  //proxy: true, //proxy connection
-                  cookie : { secure : false, maxAge: 1800000, path : '/login', httpOnly : true },
+                  proxy: true, //proxy connection
+                  cookie : { secure : true, maxAge: 1800000, path : '/login', httpOnly : true },
                   store : new MongoStore({
                       mongooseConnection: mongoose.connection
                   })
@@ -50,17 +49,3 @@ app.use(busboy())
 require('./app/routes.js')(app, passport);
 
 server.listen(port);
-
-/*var options = {
-  key: fs.readFileSync('key.pem'),
-  cert: fs.readFileSync('cert.pem')
-};*/
-
-/*var a = https.createServer(options, function (req, res) {
-  res.writeHead(200);
-  res.end("hello world\n");
-}).listen(8080);*/
-//var a = http.createServer(function (req, res) {
-//  res.writeHead(200);
-//  res.end("hello world\n");
-//}).listen(8080);

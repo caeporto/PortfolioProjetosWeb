@@ -14,7 +14,6 @@ AWS.config.region = 'sa-east-1';
 
 // route middleware to make sure an user is logged in
 function isUserLoggedIn(req, res, next) {
-
     // if user is authenticated in the session, carry on
     if (req.isAuthenticated())
         return next();
@@ -55,14 +54,79 @@ function parseDate(input, begin) {
 
 module.exports = function(app, passport) {
 
-    // app.get('/login/projectfindsuggestions/:category/:workload', function(req, res){
+    app.get('/login/getprogramsbyoptions/:name/:category/:status/:begin_date/:end_date', isUserLoggedIn, function(req, res){
+        name = req.params.name;
+        category = req.params.category;
+        status = req.params.status;
+        bdate = (req.params.begin_date !== 'null')? parseDate(req.params.begin_date, true) : 'null';
+        edate = (req.params.end_date !== 'null')? parseDate(req.params.end_date, false) : 'null';
 
-    // });
+        Program.find({ $or: [{name : (name === 'null')? null : name}, 
+                             {category : (category === 'null')? null : category}, 
+                             {status : (status === 'null')? null : status},
+                             {begin_date : (bdate === 'null')? null : { $gte : bdate }},
+                             {end_date : (edate === 'null')? null : { $lte : edate }}
+                            ]}, function(err, programs){
+            if(err)
+                res.send(err);
+            else if(!programs)
+                res.status(404).send('Error');
+            else
+            {
+                res.status(200).send(programs);
+            }
+        });
+    });
 
-    // //find suggestions using a basic set of variables
-    // app.get('/login/findsuggestions/', function(req, res){
+    app.get('/login/myprogram/:idprogram', isUserLoggedIn, function(req, res){
+        Program.findOne({_id : req.params.idprogram}, function(err, program){
+            if(err)
+                res.send(err);
+            else if(!program)
+                 res.status(404).send('Error');
+            else
+            {
+                res.status(200).send(program);
+            }
+        });
+    });
 
-    // });
+    app.get('/login/getprojectsbyoptions/:name/:category/:status/:begin_date/:end_date', isUserLoggedIn, function(req, res){
+        name = req.params.name;
+        category = req.params.category;
+        status = req.params.status;
+        bdate = (req.params.begin_date !== 'null')? parseDate(req.params.begin_date, true) : 'null';
+        edate = (req.params.end_date !== 'null')? parseDate(req.params.end_date, false) : 'null';
+
+        Project.find({ $or: [{name : (name === 'null')? null : name}, 
+                             {category : (category === 'null')? null : category}, 
+                             {status : (status === 'null')? null : status},
+                             {begin_date : (bdate === 'null')? null : { $gte : bdate }},
+                             {end_date : (edate === 'null')? null : { $lte : edate }}
+                            ]}, function(err, projects){
+            if(err)
+                res.send(err);
+            else if(!projects)
+                res.status(404).send('Error');
+            else
+            {
+                res.status(200).send(projects);
+            }
+        });
+    });
+
+    app.get('/login/myproject/:idproject', isUserLoggedIn, function(req, res){
+        Project.findOne({_id : req.params.idproject}, function(err, project){
+            if(err)
+                res.send(err);
+            else if(!project)
+                res.status(404).send('Error');
+            else
+            {
+                res.status(200).send(project);
+            }
+        });
+    });
 
     app.get('/login/getprograms/:skip/:limit', isUserLoggedIn, function(req, res){
         Program.find({}, {'total_value' : 0}).skip(parseInt(req.params.skip, 10)).limit(parseInt(req.params.limit, 10)).exec(function(err, programs){
@@ -472,7 +536,8 @@ module.exports = function(app, passport) {
     });
 
 	app.post('/login', passport.authenticate('local-login'), function(req, res) {
-    	res.status(200).send(req.user);
+        //console.log(req.protocol);
+	res.status(200).send(req.user);
     });
 
 };
