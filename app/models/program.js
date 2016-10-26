@@ -10,6 +10,8 @@ var Project = require('./project');
 //validation
 //var validate = require('mongoose-validate');
 
+//andamento, cancelado, finalizado, suspenso
+
 // define the schema for the program model
 var programSchema = mongoose.Schema({
 
@@ -17,6 +19,7 @@ var programSchema = mongoose.Schema({
 	description : { type: String, required: true},
     //required
     projects : [{type : Schema.Types.ObjectId, ref : 'Project', required : true}],
+    manager : {type : Schema.Types.ObjectId, ref : 'User', required : true},
     total_value : {type : Number, required : true},
     status : {type : Number, required : true},
     category : { type: String, require: true},

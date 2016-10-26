@@ -10,10 +10,16 @@ var Portfolio = require('./portfolio');
 //validation
 //var validate = require('mongoose-validate');
 
+//status do projeto
+//pendente 0 (aprovação estratégica (diretor )termo de abertura), pendente 1 (aprovação do gerente de portfolio), andamento 2 - cancelado 3
+//																													    	  - suspenso 4 - cancelado ou andamento
+//																													    	  - finalizado 5
+
 // define the schema for the program model
 var projectSchema = mongoose.Schema({
 	name : { type: String, required: true},
 	description : { type: String, required: true},
+	//termo de abertura
 	human_resources : [{type : Schema.Types.ObjectId, ref : 'User'}],
 	manager : {type : Schema.Types.ObjectId, ref : 'User', required : true},
 	total_value : {type: Number, required: true},
@@ -24,7 +30,9 @@ var projectSchema = mongoose.Schema({
 	project_roles : [{type : String, required : true}],
 	project_files : [{type : String}],
 	begin_date : {type : Date, required : true},
-	end_date : {type : Date, required : true}
+	end_date : {type : Date, required : true},
+	approved_one : {type : Boolean},
+	approved_two : {type : Boolean}
 });
 
 projectSchema.methods.validateProjectRoles = function (portfolio_m, async_m, validcallback) {

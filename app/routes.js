@@ -14,6 +14,7 @@ AWS.config.region = 'sa-east-1';
 
 // route middleware to make sure an user is logged in
 function isUserLoggedIn(req, res, next) {
+
     // if user is authenticated in the session, carry on
     if (req.isAuthenticated())
         return next();
@@ -54,6 +55,31 @@ function parseDate(input, begin) {
 
 module.exports = function(app, passport) {
 
+    //listar usuarios de acordo com opcoes
+
+    app.get('/login/getusersbyoptions/:workload/:role', isUserLoggedIn, function(req, res){
+        if(req.user.usertype === Constants.PROJECT_MANAGER || req.user.usertype === Constants.PORTFOLIO_MANAGER){
+            workload = req.params.workload;
+            role = req.params.role;
+            User.find({ $or : [{available_work_load : (workload === 'null')? null : {$gte : workload}}, 
+                               {possible_roles : (role === 'null')? null : {$eq : role}}
+                              ]}, 
+                               {'email' : 1, 'username' : 1, 'available_work_load' : 1, 'possible_roles' : 1}, 
+                               function(err, users){
+                if(err)
+                    res.send(err);
+                else if(!users)
+                    res.status(404).send('Error');
+                else
+                {
+                    res.status(200).send(users);
+                }
+            });
+        }
+        else
+            res.sendStatus(401);
+    });
+
     app.get('/login/getprogramsbyoptions/:name/:category/:status/:begin_date/:end_date', isUserLoggedIn, function(req, res){
         name = req.params.name;
         category = req.params.category;
@@ -86,23 +112,28 @@ module.exports = function(app, passport) {
                  res.status(404).send('Error');
             else
             {
-                res.status(200).send(program);
+                if(req.user._id.equals(program.manager))
+                    res.status(200).send(program);
+                else
+                    res.sendStatus(404);
             }
         });
     });
 
-    app.get('/login/getprojectsbyoptions/:name/:category/:status/:begin_date/:end_date', isUserLoggedIn, function(req, res){
+    app.get('/login/getprojectsbyoptions/:name/:category/:status/:begin_date/:end_date/:manager', isUserLoggedIn, function(req, res){
         name = req.params.name;
         category = req.params.category;
         status = req.params.status;
         bdate = (req.params.begin_date !== 'null')? parseDate(req.params.begin_date, true) : 'null';
         edate = (req.params.end_date !== 'null')? parseDate(req.params.end_date, false) : 'null';
+        manager = req.params.manager;
 
         Project.find({ $or: [{name : (name === 'null')? null : name}, 
                              {category : (category === 'null')? null : category}, 
                              {status : (status === 'null')? null : status},
                              {begin_date : (bdate === 'null')? null : { $gte : bdate }},
-                             {end_date : (edate === 'null')? null : { $lte : edate }}
+                             {end_date : (edate === 'null')? null : { $lte : edate }},
+                             {manager : (manager === 'null')? null : manager},
                             ]}, function(err, projects){
             if(err)
                 res.send(err);
@@ -123,7 +154,10 @@ module.exports = function(app, passport) {
                 res.status(404).send('Error');
             else
             {
-                res.status(200).send(project);
+                if(req.user.projects.indexOf(project._id) > -1)
+                    res.status(200).send(project);
+                else
+                    res.sendStatus(404);
             }
         });
     });
@@ -222,8 +256,8 @@ module.exports = function(app, passport) {
 
     //upload file
     app.post('/login/uploadfile/:projectid', isUserLoggedIn, function(req, res){
-        if(req.user.usertype === Constants.PORTFOLIO_MANAGER){
-            Project.findOne({ '_id' : req.params.projectid}, function(err, project){
+        if(req.user.usertype === Constants.PROJECT_MANAGER || req.user.usertype === Constants.PORTFOLIO_MANAGER){
+            Project.findOne({_id : req.params.projectid}, function(err, project){
                 if(err)
                     res.send(err);
                 else
@@ -333,7 +367,7 @@ module.exports = function(app, passport) {
 
 	app.post('/login/createprogram', isUserLoggedIn, function(req, res){
         if(req.user.usertype === Constants.PROJECT_MANAGER || req.user.usertype === Constants.PORTFOLIO_MANAGER){
-            Program.findOne({_id : req.user._id}, function(perr, program){
+            Program.findOne({name : req.body.name}, function(perr, program){
                 if(perr)
                     res.send(serr);
                 else if(program)
@@ -348,23 +382,31 @@ module.exports = function(app, passport) {
                     new_program.save(function(nperr, program) {
                         if (nperr)
                             throw nperr;
-                        Portfolio.find({}, function(perr, port_documents){
-                            if(perr)
-                                res.send(serr); 
+                        req.user.programs.push(program);
+                        req.user.save(function(usererr){
+                            if(usererr)
+                                res.send(usererr);
                             else
                             {
-                                var portfolio = port_documents[0];
-                                portfolio.programs.push(program);
-
-                                portfolio.save(function(porterr){
-                                    if(porterr)
+                                Portfolio.find({}, function(perr, port_documents){
+                                    if(perr)
                                         res.send(serr); 
                                     else
                                     {
-                                        res.status(200).send(program);
+                                        var portfolio = port_documents[0];
+                                        portfolio.programs.push(program);
+
+                                        portfolio.save(function(porterr){
+                                            if(porterr)
+                                                res.send(serr); 
+                                            else
+                                            {
+                                                res.status(200).send(program);
+                                            }
+                                        });
                                     }
                                 });
-                            }
+                            } 
                         });
                     });
                 }
@@ -373,6 +415,13 @@ module.exports = function(app, passport) {
         else
             res.sendStatus(401); //unauthorized
 	});
+
+    //allocate human resources to project (minus workload in user) 
+    app.put('/login/create_human_resources/:project', isUserLoggedIn, function(req, res){
+        
+    });
+
+    //modificar para criar o termo de abertura
 
 	app.post('/login/createproject', isUserLoggedIn, function(req, res){
         if(req.user.usertype === Constants.PROJECT_MANAGER || req.user.usertype === Constants.PORTFOLIO_MANAGER){
@@ -536,8 +585,7 @@ module.exports = function(app, passport) {
     });
 
 	app.post('/login', passport.authenticate('local-login'), function(req, res) {
-        //console.log(req.protocol);
-	res.status(200).send(req.user);
+    	res.status(200).send(req.user);
     });
 
 };
