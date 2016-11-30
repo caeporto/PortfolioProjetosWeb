@@ -57,14 +57,18 @@ module.exports = function(app, passport) {
 
     //listar usuarios de acordo com opcoes
 
-    app.get('/login/getusersbyoptions/:workload/:role', isUserLoggedIn, function(req, res){
+    app.get('/login/getusersbyoptions/:email/:username/:workload/:role', isUserLoggedIn, function(req, res){
         if(req.user.usertype === Constants.PROJECT_MANAGER || req.user.usertype === Constants.PORTFOLIO_MANAGER){
             workload = req.params.workload;
             role = req.params.role;
+	    user_email = req.params.email;
+	    user_name = req.params.username;
             User.find({ $or : [{available_work_load : (workload === 'null')? null : {$gte : workload}}, 
-                               {possible_roles : (role === 'null')? null : {$eq : role}}
+                               {possible_roles : (role === 'null')? null : {$eq : role}},
+			       {email : (user_email === 'null')? null : user_email},
+			       {username : (user_name === 'null')? null : user_name}
                               ]}, 
-                               {'email' : 1, 'username' : 1, 'available_work_load' : 1, 'possible_roles' : 1}, 
+                               {'email' : 1, 'username' : 1, 'usertype' : 1, 'available_work_load' : 1, 'possible_roles' : 1}, 
                                function(err, users){
                 if(err)
                     res.send(err);
@@ -120,20 +124,24 @@ module.exports = function(app, passport) {
         });
     });
 
-    app.get('/login/getprojectsbyoptions/:name/:category/:status/:begin_date/:end_date/:manager', isUserLoggedIn, function(req, res){
+    app.get('/login/getprojectsbyoptions/:name/:category/:status/:begin_date/:end_date/:manager/:approvedfirst/:approvedsecond', isUserLoggedIn, function(req, res){
         name = req.params.name;
         category = req.params.category;
         status = req.params.status;
         bdate = (req.params.begin_date !== 'null')? parseDate(req.params.begin_date, true) : 'null';
         edate = (req.params.end_date !== 'null')? parseDate(req.params.end_date, false) : 'null';
         manager = req.params.manager;
+	approved_uno = req.params.approvedfirst;
+	approved_dos = req.params.approvedsecond;
 
-        Project.find({ $or: [{name : (name === 'null')? null : name}, 
-                             {category : (category === 'null')? null : category}, 
+        Project.find({ $or: [{name : (name === 'null')? null : name},
+                             {category : (category === 'null')? null : category},
                              {status : (status === 'null')? null : status},
                              {begin_date : (bdate === 'null')? null : { $gte : bdate }},
                              {end_date : (edate === 'null')? null : { $lte : edate }},
                              {manager : (manager === 'null')? null : manager},
+			     {approved_one : (approved_uno === 'null')? null : approved_uno},
+			     {approved_two : (approved_dos === 'null')? null : approved_dos}
                             ]}, function(err, projects){
             if(err)
                 res.send(err);
@@ -421,6 +429,81 @@ module.exports = function(app, passport) {
         
     });
 
+    app.put('/login/approvefirst/:project/:approval', isUserLoggedIn, function(req,res){
+    	if(req.user.usertype === Constants.PORTFOLIO_MANAGER){
+    		Project.findOne({ name : req.body.name }, function(perr, project){
+    				if(perr)
+                    			res.send(serr);
+				else if(!project)
+					res.status(404).send('Error');
+				else{
+					if(project.status == 0)
+					{
+						if(req.params.approval === 'yes')
+						{
+							project.status = 1; // aprovacao do project manager
+							project.approved_one = true;
+						}
+						else if(req.params.approval === 'no')
+	    					{
+	    						project.status = 3; // cancelado
+	    						project.approved_one = false;
+	    					}
+
+	    					project.save(function(nperr, project) {
+                            				if (nperr)
+                                				throw nperr;
+                            				res.sendStatus(200);
+                        			});
+	    				}
+	    				else{
+	    					res.status(404).send('Error');
+					}
+
+				}
+    		});
+    	}
+    	else
+            res.sendStatus(401); //unauthorized
+    });
+
+    app.put('/login/approvesecond/:project/:approval', isUserLoggedIn, function(req,res){
+    	if(req.user.usertype === Constants.PROJECT_MANAGER){
+    		Project.findOne({ name : req.params.project, manager : req.user._id }, function(perr, project){
+    				if(perr)
+        		            res.send(serr);
+				else if(!project)
+					res.status(404).send('Error');
+				else{
+					if(project.status == 1)
+					{
+						if(req.params.approval === 'yes')
+						{
+							project.status = 2; // aprovacao do project manager
+							project.approved_two = true;
+						}
+						else if(req.params.approval === 'no')
+	    					{
+	    						project.status = 3; // cancelado
+	    						project.approved_two = false;
+	    					}
+
+	    					project.save(function(nperr, project) {
+                            				if (nperr)
+                                				throw nperr;
+                            				res.sendStatus(200);
+                        			});
+	    				}
+	    				else {
+	    					res.status(404).send('Error');
+					}
+				}
+    		});
+    	}
+    	else
+            res.sendStatus(401); //unauthorized
+    });
+
     //modificar para criar o termo de abertura
 
 	app.post('/login/createproject', isUserLoggedIn, function(req, res){
@@ -443,6 +526,7 @@ module.exports = function(app, passport) {
                             req.body.begin_date = parseDate(req.body.begin_date, true); 
                             req.body.end_date = parseDate(req.body.end_date, false);
                             var new_project = new Project(req.body);
+
                             //check if is possible to create the project
                             if(!(portfolio.total_value - new_project.total_value >= 0))
                                 res.status(404).send('Error');
@@ -457,15 +541,14 @@ module.exports = function(app, passport) {
                                     var admin_passkey = req.user.decryptText(req.user.keypasscred);
                                     AWS.config.update({accessKeyId: admin_key, secretAccessKey: admin_passkey});
                                     var iam = new AWS.IAM();
-                                    var params = {
+				    var params = {
                                         GroupName: new_project.name /* required */
                                     };
                                     iam.createGroup(params, function(err, data) {
-                                        if (err) 
+                                        if (err)
                                             console.log(err, err.stack); // an error occurred
                                         else {
-
-                                            //last but not least create the bucket folder
+					    //last but not least create the bucket folder
                                             var s3 = new AWS.S3();
 
                                             var params = { Bucket: Constants.BUCKET, Key: new_project.name + '/' };
@@ -475,7 +558,7 @@ module.exports = function(app, passport) {
                                                     console.log("Error creating the folder: ", err);
                                                 } else {
                                                     console.log("Successfully created a folder on S3");
-
+							
                                                     //attach policy to group allowing read-write only to the project's folder in s3
                                                     var policy = s3GroupPolicy(Constants.BUCKET, new_project.name);
                                                     var params = {
@@ -520,19 +603,23 @@ module.exports = function(app, passport) {
                                                                         new_project.save(function(nperr, project) {
                                                                             if (nperr)
                                                                                 throw nperr;
-                                                                                
-                                                                            portfolio.projects.push(project);
-                                                                            portfolio.total_value = portfolio.total_value - project.total_value;
+                       							    req.user.projects.push(project);
+                                                        	            req.user.save(function(usererr){
+                                                                	        if(usererr)
+                                                                        	        res.send(usererr);
+                                                                        	portfolio.projects.push(project);
+                                                                        	portfolio.total_value = portfolio.total_value - project.total_value;
 
-                                                                            portfolio.save(function(porterr){
-                                                                                if(porterr)
-                                                                                    res.send(serr); 
-                                                                                else
-                                                                                {
-                                                                                    res.status(200).send(project);
-                                                                                }
-                                                                            });
-                                                                        });
+                                                                       		 portfolio.save(function(porterr){
+                                                                                	if(porterr)
+                                                                                   		 res.send(serr); 
+                                                                            		else
+                                                                                	{
+                                                                                		res.status(200).send(project);
+                                                                                	}
+                                                                        	});
+                                                                    	    });
+			                                                });
                                                                     }
                                                                 });
                                                             }
@@ -542,16 +629,21 @@ module.exports = function(app, passport) {
                                                                     if (nperr)
                                                                         throw nperr;
 
-                                                                    portfolio.projects.push(project);
-                                                                    portfolio.total_value = portfolio.total_value - project.total_value;
+								    req.user.projects.push(project);
+								    req.user.save(function(usererr){
+                                                                    	if(usererr)
+                                                                    		res.send(usererr);
+                                                                    	portfolio.projects.push(project);
+                                                                    	portfolio.total_value = portfolio.total_value - project.total_value;
 
-                                                                    portfolio.save(function(porterr){
-                                                                        if(porterr)
-                                                                            res.send(serr); 
-                                                                        else
-                                                                        {
-                                                                            res.status(200).send(project);
-                                                                        }
+                                                                    	portfolio.save(function(porterr){
+                                                                        	if(porterr)
+	                                                                            res.send(serr); 
+    	                                                                    else
+        	                                                                {
+            	                                                                res.status(200).send(project);
+                	                                                        }
+                    	                                                });
                                                                     });
                                                                 });
                                                             }
@@ -572,6 +664,18 @@ module.exports = function(app, passport) {
             res.sendStatus(401); //unauthorized
 	});
 
+    app.get('/login/getroles', isUserLoggedIn, function(req, res){
+	Portfolio.find({}, function(perr, port_documents){
+		if(perr)
+			res.send(serr); 
+		else
+		{
+			var portfolio = port_documents[0];
+			res.status(200).send(portfolio);
+		}
+	});    
+    });
+
 	//only the admin is able to register a new user
     app.post('/login/signup', function(req, res, next){  
         if(req.isAuthenticated())
@@ -584,8 +688,14 @@ module.exports = function(app, passport) {
     	res.sendStatus(200);
     });
 
-	app.post('/login', passport.authenticate('local-login'), function(req, res) {
+    app.post('/login', passport.authenticate('local-login'), function(req, res) {
     	res.status(200).send(req.user);
+    });
+    
+    app.post('/login/logout', isUserLoggedIn, function(req, res) {
+        req.session.destroy();
+        req.logout();
+        res.send(200);
     });
 
 };

@@ -20,6 +20,7 @@ var portfolioSchema = mongoose.Schema({
     projects : [{type : Schema.Types.ObjectId, ref : 'Project'}],
     human_resources : [{type : Schema.Types.ObjectId, ref : 'User'}],
     total_value : {type : Number, required : true},
+    possible_categories : [{type : String, required : true}],
     possible_roles : [{type : String, required : true}]
 });
 
